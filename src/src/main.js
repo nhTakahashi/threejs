@@ -4,7 +4,6 @@ import * as THREE from 'three'
 const canvas = document.querySelector('#c')
 
 const scene = new THREE.Scene()
-scene.background = new THREE.Color(0xdbeafe)
 
 const camera = new THREE.PerspectiveCamera(
   75,
@@ -18,14 +17,40 @@ camera.lookAt(0, 0, 0)
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
 renderer.setSize(window.innerWidth, window.innerHeight)
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+renderer.outputColorSpace = THREE.SRGBColorSpace
 renderer.shadowMap.enabled = true
 renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
+const loader = new THREE.TextureLoader()
+const skyTexture = loader.load('/textures/sky_bg.png')
+skyTexture.colorSpace = THREE.SRGBColorSpace
+scene.background = skyTexture
+
+const configureColorTexture = (texture) => {
+  texture.colorSpace = THREE.SRGBColorSpace
+}
+
+const configureFloorTexture = (texture) => {
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.wrapS = THREE.RepeatWrapping
+  texture.wrapT = THREE.RepeatWrapping
+  texture.repeat.set(8, 8)
+}
+
+let cubeTexture
+cubeTexture = loader.load('/textures/wood_color.png')
+configureColorTexture(cubeTexture)
+
+let floorTexture
+floorTexture = loader.load('/textures/wood_roughness.png')
+configureFloorTexture(floorTexture)
+
 const geometry = new THREE.BoxGeometry(1, 1, 1)
+
 const material = new THREE.MeshStandardMaterial({
-  color: 0x3b82f6,
-  roughness: 0.4,
-  metalness: 0.6,
+  map: cubeTexture,
+  roughness: 0.7,
+  metalness: 0.1,
 })
 const cube = new THREE.Mesh(geometry, material)
 cube.castShadow = true
@@ -35,8 +60,8 @@ scene.add(cube)
 const floor = new THREE.Mesh(
   new THREE.PlaneGeometry(20, 20),
   new THREE.MeshStandardMaterial({
-    color: 0xe5e7eb,
-    roughness: 0.95,
+    map: floorTexture,
+    roughness: 0.9,
     metalness: 0.05,
   }),
 )
@@ -45,9 +70,9 @@ floor.position.y = -0.001
 floor.receiveShadow = true
 scene.add(floor)
 
-const ambient = new THREE.AmbientLight(0xffffff, 0.35)
+const ambient = new THREE.AmbientLight(0xffffff, 0.5)
 
-const key = new THREE.DirectionalLight(0xffffff, 1.0)
+const key = new THREE.DirectionalLight(0xffffff, 1.2)
 key.position.set(5, 8, 6)
 key.castShadow = true
 key.shadow.mapSize.set(2048, 2048)
@@ -58,7 +83,7 @@ key.shadow.camera.right = 8
 key.shadow.camera.top = 8
 key.shadow.camera.bottom = -8
 
-const fill = new THREE.DirectionalLight(0xffffff, 0.4)
+const fill = new THREE.DirectionalLight(0xffffff, 0.5)
 fill.position.set(-5, 2, 4)
 
 const back = new THREE.DirectionalLight(0xffffff, 0.6)
