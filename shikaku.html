@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>はじめての3D</title>
+
+    <style>
+
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+        #canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+    <canvas id="canvas"></canvas>
+    
+    <script src="https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.min.js"></script>
+    
+    <script>
+        // シーンの作成
+        const scene = new THREE.Scene();
+ 
+        // カメラの作成
+        const camera = new THREE.PerspectiveCamera(
+            75, 
+            window.innerWidth / window.innerHeight, 
+            0.1, 
+            1000
+        );
+        // カメラの位置を設定 
+        // camera.position.set(0, 1, 5);
+        camera.position.x = 0;
+        camera.position.y = 1;
+        camera.position.z = 5;      // z軸方向に5ユニット離す、z = 奥行
+        // camera.lookAT(0, 0, 0);
+
+ 
+        // レンダラーの作成
+        const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas') });
+        //レンダラーのサイズをウィンドウ全体に設定
+        //※window.innerWidth等はJavaScriptの話なので割愛
+        renderer.setSize(window. innerWidth, window. innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        const loader = new THREE.TextureLoader();
+        const skyTexture = loader.load('/textures/sky_bg.png');
+        skyTexture.colorSpace = THREE.SRGBColorSpace;
+        scene.background = skyTexture;
+
+        const configureColorTexture = (texture) =>{
+            texture.colorSpace = THREE.SRGBColorSpace;
+        };
+
+        const configureFloorTexture = (texture) =>{
+            texture.colorSpace = THREE.SRGBColorSpace;
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(8, 8);
+        };
+
+        let torusKnoTexture;
+        torusKnoTexture = loader.load('/textures/wood_color.png');
+        configureColorTexture(torusKnoTexture);
+
+        let floorTexture;
+        floorTexture = loader.load('/textures/wood_roughness.png');
+        configureFloorTexture(floorTexture);
+
+        // ジオメトリとマテリアルの作成　立方体：BoxGeometry
+        // 球：SphereGeometry, 円柱：CylinderGeometry, 円錐：ConeGeometry, 
+        // ドーナツ：TorusGeometry, 平面：PlaneGeometry, ねじれたドーナツTorusKnotGeometry 
+        const geometry = new THREE.TorusKnotGeometry(
+            1,      // 全体の大きさ
+            0.4,   // 太さ
+            200,    // ねじれの細かさ
+            32      // チューブの丸さ
+        );
+        const material = new THREE. MeshStandardMaterial({
+            map: floorTexture,
+            roughness: 0.4,
+            metalness: 0.6,
+        });
+
+        const cube = new THREE.Mesh(geometry, material);
+        cube.castShadow = true;
+        // 物体の位置
+        cube.position.x = 0;
+        cube.position.y = 2.3;
+        // cube.position.x = 0;
+
+        scene.add(cube);
+
+        const floor = new THREE.Mesh(
+            new THREE.PlaneGeometry(20, 20),
+            new THREE.MeshStandardMaterial({
+                color: 0xe5e7eb,
+                roughness: 0.95,
+                metalness: 0.05,
+            }),
+        );
+
+        // 床
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -0.001;
+        floor.receiveShadow = true;
+
+        scene.add(floor);
+
+        const ambient = new THREE.AmbientLight(0xffffff, 0.35);
+
+        const key = new THREE.DirectionalLight(0xffffff, 1.0);
+        key.position.set(5, 8, 6);      // ライト,一番強い光
+        key.castShadow = true;
+        key.shadow.mapSize.set(2048, 2048);
+        key.shadow.camera.near = 0.5;
+        key.shadow.camera.far = 30;
+        key.shadow.camera.right = 8;
+        key.shadow.camera.top = 8;
+        key.shadow.camera.bottom = -8;
+
+        const fill = new THREE.DirectionalLight(0xffffff, 0.4);
+        fill.position.set(-5, 2, 4);    // ライト,影の柔らかさ
+
+        const back = new THREE.DirectionalLight(0xffffff, 0.6);
+        back.position.set(0, 5, -5);    // ライト,バックライト
+
+        scene.add(ambient, key, fill, back)
+ 
+        // アニメーションループ
+        function animate() {
+            requestAnimationFrame(animate);
+            cube.rotation.x += 0.01;
+            cube.rotation.y += 0.01;
+            renderer.render(scene, camera);
+        }
+        animate();
+
+    </script>
+
+</body>
+</html>
