@@ -57,7 +57,8 @@
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
         const loader = new THREE.TextureLoader();
-        const skyTexture = loader.load('/textures/sky_bg.png');
+        const textureBasePath = './src/public/textures';
+        const skyTexture = loader.load(`${textureBasePath}/sky_bg.png`);
         skyTexture.colorSpace = THREE.SRGBColorSpace;
         scene.background = skyTexture;
 
@@ -73,11 +74,11 @@
         };
 
         let torusKnoTexture;
-        torusKnoTexture = loader.load('/textures/wood_color.png');
+        torusKnoTexture = loader.load(`${textureBasePath}/wood_color.png`);
         configureColorTexture(torusKnoTexture);
 
         let floorTexture;
-        floorTexture = loader.load('/textures/wood_roughness.png');
+        floorTexture = loader.load(`${textureBasePath}/wood_roughness.png`);
         configureFloorTexture(floorTexture);
 
         // ジオメトリとマテリアルの作成　立方体：BoxGeometry
