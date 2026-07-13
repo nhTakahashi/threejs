@@ -1,11 +1,14 @@
 import './style.css'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 
 const canvas = document.querySelector('#c')
 
+// 3D空間（シーン）を作る
 const scene = new THREE.Scene()
 
+// カメラを作り、少し斜め上から原点を見る
 const camera = new THREE.PerspectiveCamera(
   75,
   window.innerWidth / window.innerHeight,
@@ -15,6 +18,7 @@ const camera = new THREE.PerspectiveCamera(
 camera.position.set(3, 3, 6)
 camera.lookAt(0, 0, 0)
 
+// 描画エンジン（レンダラー）の設定
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
 renderer.setSize(window.innerWidth, window.innerHeight)
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
@@ -22,10 +26,11 @@ renderer.outputColorSpace = THREE.SRGBColorSpace
 renderer.shadowMap.enabled = true
 renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
+// マウスで視点を回転・ズームできるようにする
 const controls = new OrbitControls(camera, renderer.domElement)
 controls.enableDamping = true
 controls.dampingFactor = 0.05
-controls.target.set(0, 0.5, 0)
+controls.target.set(0, 1, 0)
 controls.minDistance = 2
 controls.maxDistance = 16
 
@@ -34,10 +39,7 @@ const skyTexture = loader.load('/textures/sky_bg.png')
 skyTexture.colorSpace = THREE.SRGBColorSpace
 scene.background = skyTexture
 
-const configureColorTexture = (texture) => {
-  texture.colorSpace = THREE.SRGBColorSpace
-}
-
+// 床テクスチャは繰り返して貼る
 const configureFloorTexture = (texture) => {
   texture.colorSpace = THREE.SRGBColorSpace
   texture.wrapS = THREE.RepeatWrapping
@@ -45,32 +47,11 @@ const configureFloorTexture = (texture) => {
   texture.repeat.set(8, 8)
 }
 
-let cubeTexture
-cubeTexture = loader.load('/textures/wood_color.png')
-configureColorTexture(cubeTexture)
-
 let floorTexture
 floorTexture = loader.load('/textures/wood_roughness.png')
 configureFloorTexture(floorTexture)
 
-const geometry = new THREE.BoxGeometry(1, 1, 1)
-const cubes = []
-
-for (let i = 0; i < 5; i += 1) {
-  const material = new THREE.MeshStandardMaterial({
-    map: cubeTexture,
-    roughness: 0.7,
-    metalness: 0.1,
-    emissive: 0x000000,
-  })
-
-  const cube = new THREE.Mesh(geometry, material)
-  cube.castShadow = true
-  cube.position.set((i - 2) * 1.6, 0.5, 0)
-  cubes.push(cube)
-  scene.add(cube)
-}
-
+// 影を受ける床
 const floor = new THREE.Mesh(
   new THREE.PlaneGeometry(20, 20),
   new THREE.MeshStandardMaterial({
@@ -103,22 +84,56 @@ fill.position.set(-5, 2, 4)
 const back = new THREE.DirectionalLight(0xffffff, 0.6)
 back.position.set(0, 5, -5)
 
+// ライトをまとめてシーンへ追加
 scene.add(ambient, key, fill, back)
 
+// 読み込んだモデルを入れるコンテナ
+const modelRoot = new THREE.Group()
+scene.add(modelRoot)
+
+// クリック判定（レイキャスト）用の準備
 const raycaster = new THREE.Raycaster()
 const pointer = new THREE.Vector2()
+const pickTargets = []
 
 let hovered = null
 let selected = null
 
-const resetEmissive = (mesh) => {
-  if (!mesh) return
-  mesh.material.emissive.setHex(0x000000)
+// マテリアルを配列/単体どちらでも扱えるようにする
+const getMaterials = (mesh) => {
+  if (!mesh?.material) return []
+  return Array.isArray(mesh.material) ? mesh.material : [mesh.material]
 }
 
+// 発光色を「元の色」に戻す
+const resetMaterialEmissive = (material) => {
+  if (!material?.emissive?.isColor) return
+  const base = material.userData?.baseEmissive
+  material.emissive.setHex(typeof base === 'number' ? base : 0x000000)
+}
+
+// 発光色を設定する（初回だけ元の色を保存しておく）
+const setMaterialEmissive = (material, color) => {
+  if (!material?.emissive?.isColor) return
+  if (typeof material.userData.baseEmissive !== 'number') {
+    material.userData.baseEmissive = material.emissive.getHex()
+  }
+  material.emissive.setHex(color)
+}
+
+// メッシュ全体のハイライトを解除
+const resetEmissive = (mesh) => {
+  if (!mesh) return
+  const materials = getMaterials(mesh)
+  materials.forEach(resetMaterialEmissive)
+}
+
+// メッシュ全体をハイライト（選択中とホバー中で色を変える）
 const applyHighlight = (mesh) => {
   if (!mesh) return
-  mesh.material.emissive.setHex(mesh === selected ? 0x22d3ee : 0x224466)
+  const color = mesh === selected ? 0x22d3ee : 0x224466
+  const materials = getMaterials(mesh)
+  materials.forEach((material) => setMaterialEmissive(material, color))
 }
 
 const setPointerFromEvent = (event) => {
@@ -127,11 +142,13 @@ const setPointerFromEvent = (event) => {
   pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
 }
 
+// マウス位置から「どのメッシュに当たっているか」を取得
 const pick = () => {
   raycaster.setFromCamera(pointer, camera)
-  return raycaster.intersectObjects(cubes, false)[0]?.object ?? null
+  return raycaster.intersectObjects(pickTargets, false)[0]?.object ?? null
 }
 
+// マウス移動時: ホバー対象を更新し、必要ならハイライトを切り替える
 renderer.domElement.addEventListener('pointermove', (event) => {
   setPointerFromEvent(event)
   const hit = pick()
@@ -149,6 +166,7 @@ renderer.domElement.addEventListener('pointermove', (event) => {
   }
 })
 
+// クリック時: 選択対象を確定し、選択色でハイライトする
 renderer.domElement.addEventListener('pointerdown', (event) => {
   setPointerFromEvent(event)
   const hit = pick()
@@ -164,6 +182,7 @@ renderer.domElement.addEventListener('pointerdown', (event) => {
   applyHighlight(selected)
 })
 
+// キャンバス外にポインタが出たとき: ホバー表示だけ解除する
 renderer.domElement.addEventListener('pointerleave', () => {
   if (hovered && hovered !== selected) {
     resetEmissive(hovered)
@@ -171,9 +190,60 @@ renderer.domElement.addEventListener('pointerleave', () => {
   hovered = null
 })
 
+// モデルの中心を原点へ寄せ、床に接地させる
+const fitModelAtOrigin = (model) => {
+  const box = new THREE.Box3().setFromObject(model)
+  const center = box.getCenter(new THREE.Vector3())
+  model.position.sub(center)
+
+  const size = box.getSize(new THREE.Vector3())
+  const maxAxis = Math.max(size.x, size.y, size.z) || 1
+  const scale = 2.6 / maxAxis
+  model.scale.setScalar(scale)
+
+  box.setFromObject(model)
+  model.position.y -= box.min.y
+}
+
+// クリック対象メッシュを登録し、影設定も合わせて行う
+const registerPickTargets = (root) => {
+  pickTargets.length = 0
+  root.traverse((child) => {
+    if (!child.isMesh) return
+    child.castShadow = true
+    child.receiveShadow = true
+    pickTargets.push(child)
+  })
+}
+
+const gltfLoader = new GLTFLoader()
+const modelUrl = '/models/Altar01_Art.glb'
+
+// GLBモデルを読み込んでシーンへ追加
+gltfLoader.load(
+  modelUrl,
+  (gltf) => {
+    const model = gltf.scene
+
+    modelRoot.clear()
+    hovered = null
+    selected = null
+
+    fitModelAtOrigin(model)
+    modelRoot.add(model)
+    registerPickTargets(model)
+  },
+  undefined,
+  (error) => {
+    console.error(`Failed to load model: ${modelUrl}`, error)
+  },
+)
+
 function animate() {
   requestAnimationFrame(animate)
 
+  // 毎フレーム少しずつ回転
+  modelRoot.rotation.y += 0.003
   controls.update()
 
   renderer.render(scene, camera)
