@@ -191,23 +191,30 @@ renderer.domElement.addEventListener('pointerleave', () => {
 })
 
 // モデルの中心を原点へ寄せ、床に接地させる
-const fitModelAtOrigin = (model) => {
+const fitModelAtOrigin = (model, options = {}) => {
+  const { targetSize = 2.6, offsetX = 0 } = options
+
+  // モデルのバウンディングボックスを計算して原点に寄せる
   const box = new THREE.Box3().setFromObject(model)
   const center = box.getCenter(new THREE.Vector3())
   model.position.sub(center)
 
+  // サイズを正規化して視認性を揃える
   const size = box.getSize(new THREE.Vector3())
   const maxAxis = Math.max(size.x, size.y, size.z) || 1
-  const scale = 2.6 / maxAxis
+  const scale = targetSize / maxAxis
   model.scale.setScalar(scale)
 
+  // 位置オフセットを適用（複数モデル配置用）
+  model.position.x += offsetX
+
+  // 再計算して床に接地させる
   box.setFromObject(model)
   model.position.y -= box.min.y
 }
 
 // クリック対象メッシュを登録し、影設定も合わせて行う
 const registerPickTargets = (root) => {
-  pickTargets.length = 0
   root.traverse((child) => {
     if (!child.isMesh) return
     child.castShadow = true
@@ -216,39 +223,48 @@ const registerPickTargets = (root) => {
   })
 }
 
+const resetInteractionState = () => {
+  hovered = null
+  selected = null
+}
+
 const gltfLoader = new GLTFLoader()
-const modelUrl = '/models/Altar01_Art.glb'
 
-// GLBモデルを読み込んでシーンへ追加
-gltfLoader.load(
-  modelUrl,
-  (gltf) => {
-    const model = gltf.scene
+const loadModel = ({ url, offsetX = 0 }) => {
+  gltfLoader.load(
+    url,
+    (gltf) => {
+      const model = gltf.scene
 
-    modelRoot.clear()
-    hovered = null
-    selected = null
+      resetInteractionState()
+      fitModelAtOrigin(model, { offsetX })
+      modelRoot.add(model)
+      registerPickTargets(model)
+    },
+    undefined,
+    (error) => {
+      console.error(`Failed to load model: ${url}`, error)
+    },
+  )
+}
 
-    fitModelAtOrigin(model)
-    modelRoot.add(model)
-    registerPickTargets(model)
-  },
-  undefined,
-  (error) => {
-    console.error(`Failed to load model: ${modelUrl}`, error)
-  },
-)
+// 複数モデルを同じ処理で読み込む
+pickTargets.length = 0
+loadModel({ url: '/models/Table.glb' })
+loadModel({ url: '/models/Altar01_Art.glb', offsetX: 2.5 })
 
+
+// 毎フレームの描画処理
 function animate() {
   requestAnimationFrame(animate)
 
   // 毎フレーム少しずつ回転
-  modelRoot.rotation.y += 0.003
+  modelRoot.rotation.y += 0.000
   controls.update()
 
   renderer.render(scene, camera)
 }
-
+// ウィンドウサイズが変わったらカメラとレンダラーを更新
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight
   camera.updateProjectionMatrix()
