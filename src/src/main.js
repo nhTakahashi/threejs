@@ -165,18 +165,30 @@ const getPickedModel = (mesh) => {
   return model?.parent === modelRoot ? model : null
 }
 
-// 選んだモデルを空へ向けてゆっくり上昇させる
+// 選んだモデルを上昇させ、少し待ってから元の高さへ落下させる
 const raiseModel = (mesh) => {
   const model = getPickedModel(mesh)
   if (!model) return
 
-  // 連続クリック時は、前の移動を止めて現在位置から上昇し直す
+  // 初回だけ、床に置かれたときの高さを着地点として保存する
+  if (typeof model.userData.groundY !== 'number') {
+    model.userData.groundY = model.position.y
+  }
+
+  // 連続クリック時は、前の移動を止めて初期位置からやり直す
   gsap.killTweensOf(model.position)
-  gsap.to(model.position, {
-    y: model.position.y + 8,
-    duration: 4,
-    ease: 'power1.in',
-  })
+  gsap.timeline()
+    .to(model.position, {
+      y: model.userData.groundY + 8,
+      duration: 1.2,
+      ease: 'power2.out',
+    })
+    .to(model.position, {
+      y: model.userData.groundY,
+      duration: 1.4,
+      ease: 'power2.in',
+      delay: 1,
+    })
 }
 
 // マウス移動時: ホバー対象を更新し、必要ならハイライトを切り替える
