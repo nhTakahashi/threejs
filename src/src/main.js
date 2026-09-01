@@ -251,7 +251,7 @@ const loadModel = ({ url, offsetX = 0 }) => {
 // 複数モデルを同じ処理で読み込む
 pickTargets.length = 0
 loadModel({ url: '/models/Table.glb' })
-loadModel({ url: '/models/Altar01_Art.glb', offsetX: 2.5 })
+loadModel({ url: '/models/untitled.glb', offsetX: 2.5 })
 
 
 // 毎フレームの描画処理
