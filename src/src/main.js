@@ -154,6 +154,31 @@ const pick = () => {
   return raycaster.intersectObjects(pickTargets, false)[0]?.object ?? null
 }
 
+// クリックしたメッシュを含む、modelRoot 直下のモデル全体を見つける
+const getPickedModel = (mesh) => {
+  let model = mesh
+
+  while (model?.parent && model.parent !== modelRoot) {
+    model = model.parent
+  }
+
+  return model?.parent === modelRoot ? model : null
+}
+
+// 選んだモデルを空へ向けてゆっくり上昇させる
+const raiseModel = (mesh) => {
+  const model = getPickedModel(mesh)
+  if (!model) return
+
+  // 連続クリック時は、前の移動を止めて現在位置から上昇し直す
+  gsap.killTweensOf(model.position)
+  gsap.to(model.position, {
+    y: model.position.y + 8,
+    duration: 4,
+    ease: 'power1.in',
+  })
+}
+
 // マウス移動時: ホバー対象を更新し、必要ならハイライトを切り替える
 renderer.domElement.addEventListener('pointermove', (event) => {
   setPointerFromEvent(event)
@@ -186,6 +211,7 @@ renderer.domElement.addEventListener('pointerdown', (event) => {
 
   selected = hit
   applyHighlight(selected)
+  raiseModel(hit)
 })
 
 // キャンバス外にポインタが出たとき: ホバー表示だけ解除する
