@@ -2,6 +2,7 @@ import './style.css'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import gsap from 'gsap'
 
 const canvas = document.querySelector('#c')
 
@@ -33,6 +34,9 @@ controls.dampingFactor = 0.05
 controls.target.set(0, 1, 0)
 controls.minDistance = 2
 controls.maxDistance = 16
+
+const clock = new THREE.Clock()
+const mixers = []
 
 const loader = new THREE.TextureLoader()
 const skyTexture = loader.load('/textures/sky_bg.png')
@@ -230,6 +234,62 @@ const resetInteractionState = () => {
 
 const gltfLoader = new GLTFLoader()
 
+const playModelAnimation = (gltf) => {
+  if (gltf.animations.length === 0) return
+
+  const mixer = new THREE.AnimationMixer(gltf.scene)
+  mixer.clipAction(gltf.animations[0]).play()
+  mixers.push(mixer)
+}
+
+const revealModel = (model, delay) => {
+  model.position.y -= 1.2
+  model.scale.multiplyScalar(0.01)
+
+  model.traverse((child) => {
+    if (!child.isMesh) return
+    const materials = getMaterials(child)
+    materials.forEach((material) => {
+      material.transparent = true
+      material.opacity = 0
+    })
+  })
+
+  const timeline = gsap.timeline({ delay })
+  timeline.to(model.position, {
+    y: `+=1.2`,
+    duration: 1.2,
+    ease: 'power3.out',
+  })
+  timeline.to(
+    model.scale,
+    {
+      x: model.scale.x * 100,
+      y: model.scale.y * 100,
+      z: model.scale.z * 100,
+      duration: 1,
+      ease: 'back.out(1.5)',
+    },
+    '<',
+  )
+  timeline.to(
+    model,
+    {
+      duration: 0.8,
+      ease: 'power2.out',
+      onUpdate: () => {
+        model.traverse((child) => {
+          if (!child.isMesh) return
+          getMaterials(child).forEach((material) => {
+            material.opacity = timeline.progress()
+          })
+        })
+      },
+    },
+    '<',
+  )
+}
+
 const loadModel = ({ url, offsetX = 0 }) => {
   gltfLoader.load(
     url,
@@ -240,6 +300,8 @@ const loadModel = ({ url, offsetX = 0 }) => {
       fitModelAtOrigin(model, { offsetX })
       modelRoot.add(model)
       registerPickTargets(model)
+      playModelAnimation(gltf)
+      revealModel(model, offsetX === 0 ? 0.2 : 0.5)
     },
     undefined,
     (error) => {
@@ -253,13 +315,23 @@ pickTargets.length = 0
 loadModel({ url: '/models/Table.glb' })
 loadModel({ url: '/models/untitled.glb', offsetX: 2.5 })
 
+gsap.fromTo(
+  camera.position,
+  { x: 1.5, y: 2, z: 3.5 },
+  { x: 3, y: 3, z: 6, duration: 1.8, ease: 'power2.out' },
+)
 
 // 毎フレームの描画処理
 function animate() {
   requestAnimationFrame(animate)
 
-  // 毎フレーム少しずつ回転
-  modelRoot.rotation.y += 0.000
+  const delta = clock.getDelta()
+  const elapsed = clock.getElapsedTime()
+
+  mixers.forEach((mixer) => mixer.update(delta))
+  modelRoot.rotation.y += 0.15 * delta
+  modelRoot.position.y = Math.sin(elapsed * 1.5) * 0.06
+  key.position.x = Math.cos(elapsed * 0.7) * 5
   controls.update()
 
   renderer.render(scene, camera)
