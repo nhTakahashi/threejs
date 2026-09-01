@@ -35,7 +35,9 @@ controls.target.set(0, 1, 0)
 controls.minDistance = 2
 controls.maxDistance = 16
 
+// フレーム間の経過時間を測り、端末ごとの描画速度の差を吸収する
 const clock = new THREE.Clock()
+// GLB ごとのアニメーション再生管理を保存する配列
 const mixers = []
 
 const loader = new THREE.TextureLoader()
@@ -234,18 +236,23 @@ const resetInteractionState = () => {
 
 const gltfLoader = new GLTFLoader()
 
+// GLB に動きのデータが含まれていれば、先頭のクリップを再生する
 const playModelAnimation = (gltf) => {
   if (gltf.animations.length === 0) return
 
+  // AnimationMixer はモデルに含まれるキーフレームアニメーションの再生役
   const mixer = new THREE.AnimationMixer(gltf.scene)
   mixer.clipAction(gltf.animations[0]).play()
   mixers.push(mixer)
 }
 
+// GSAP を使い、モデルを小さく・透明な状態から登場させる
 const revealModel = (model, delay) => {
+  // 本来の位置より下、かつ 1% の大きさからアニメーションを開始する
   model.position.y -= 1.2
   model.scale.multiplyScalar(0.01)
 
+  // 不透明度を変えられるよう、すべてのメッシュを透明描画にする
   model.traverse((child) => {
     if (!child.isMesh) return
     const materials = getMaterials(child)
@@ -255,12 +262,15 @@ const revealModel = (model, delay) => {
     })
   })
 
+  // timeline に動きを並べると、時間差や同時実行を整理できる
   const timeline = gsap.timeline({ delay })
+  // 下から上へ移動し、最後はゆっくり減速して止まる
   timeline.to(model.position, {
     y: `+=1.2`,
     duration: 1.2,
     ease: 'power3.out',
   })
+  // '<' は直前のアニメーションと同じ時刻に開始する指定
   timeline.to(
     model.scale,
     {
@@ -272,6 +282,7 @@ const revealModel = (model, delay) => {
     },
     '<',
   )
+  // 移動と同時に、タイムラインの進行度を不透明度として使う
   timeline.to(
     model,
     {
@@ -291,6 +302,7 @@ const revealModel = (model, delay) => {
 }
 
 const loadModel = ({ url, offsetX = 0 }) => {
+  // 非同期で GLB を読み込み、成功時だけシーンに追加する
   gltfLoader.load(
     url,
     (gltf) => {
@@ -300,6 +312,7 @@ const loadModel = ({ url, offsetX = 0 }) => {
       fitModelAtOrigin(model, { offsetX })
       modelRoot.add(model)
       registerPickTargets(model)
+      // モデルに含まれる動きと、コードで作る登場演出を重ねる
       playModelAnimation(gltf)
       revealModel(model, offsetX === 0 ? 0.2 : 0.5)
     },
@@ -315,6 +328,7 @@ pickTargets.length = 0
 loadModel({ url: '/models/Table.glb' })
 loadModel({ url: '/models/untitled.glb', offsetX: 2.5 })
 
+// カメラを近い位置から通常位置へ動かし、シーン全体を見せる
 gsap.fromTo(
   camera.position,
   { x: 1.5, y: 2, z: 3.5 },
@@ -325,11 +339,15 @@ gsap.fromTo(
 function animate() {
   requestAnimationFrame(animate)
 
+  // delta は前フレームからの秒数、elapsed は開始からの合計秒数
   const delta = clock.getDelta()
   const elapsed = clock.getElapsedTime()
 
+  // GLB 内のアニメーションには、毎フレーム delta を渡して進める
   mixers.forEach((mixer) => mixer.update(delta))
+  // delta を掛けると、フレームレートが違っても回転速度を一定にできる
   modelRoot.rotation.y += 0.15 * delta
+  // sin / cos で、繰り返し浮遊する動きと光の移動を作る
   modelRoot.position.y = Math.sin(elapsed * 1.5) * 0.06
   key.position.x = Math.cos(elapsed * 0.7) * 5
   controls.update()
