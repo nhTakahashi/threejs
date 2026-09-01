@@ -189,6 +189,37 @@ const raiseModel = (mesh) => {
       ease: 'power2.in',
       delay: 1,
     })
+    // 着地後は、少しずつ低くなる 3 回のバウンドで止まる
+    .to(model.position, {
+      y: model.userData.groundY + 0.7,
+      duration: 0.2,
+      ease: 'power2.out',
+    })
+    .to(model.position, {
+      y: model.userData.groundY,
+      duration: 0.24,
+      ease: 'power2.in',
+    })
+    .to(model.position, {
+      y: model.userData.groundY + 0.4,
+      duration: 0.16,
+      ease: 'power2.out',
+    })
+    .to(model.position, {
+      y: model.userData.groundY,
+      duration: 0.2,
+      ease: 'power2.in',
+    })
+    .to(model.position, {
+      y: model.userData.groundY + 0.18,
+      duration: 0.12,
+      ease: 'power2.out',
+    })
+    .to(model.position, {
+      y: model.userData.groundY,
+      duration: 0.16,
+      ease: 'power2.in',
+    })
 }
 
 // マウス移動時: ホバー対象を更新し、必要ならハイライトを切り替える
